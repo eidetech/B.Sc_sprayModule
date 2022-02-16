@@ -1,5 +1,5 @@
 /*
-  Sprøyterobot IMU
+  ---------Sprøytemudul----------
   
   Using the BNO080 IMU
 
@@ -20,6 +20,8 @@
 
   It takes about 1ms at 400kHz I2C to read a record from the sensor, but we are polling the sensor continually
   between updates from the sensor. Use the interrupt pin on the BNO080 breakout to avoid polling.
+
+  Time of flight sensor measure distance in mm.
 
 */
 
@@ -56,15 +58,15 @@ void setup()
       ;
   }
 
+//Init I2C and IMU
   Wire.setClock(400000); //Increase I2C data rate to 400kHz
-
   myIMU.enableRotationVector(1); //Send data update every 50ms
 
   Serial.println(F("Rotation vector enabled"));
   Serial.println(F("Output in form roll, pitch, yaw"));
 
 
-  //Time of Flight sensor
+//Time of Flight sensor
   sensor.init();
   sensor.setTimeout(500);
 
@@ -75,9 +77,10 @@ void setup()
   TCCR0B = (TCCR0B & 0b11111000) | 0x02;
 }
 
+
 void loop()
 {
-  //Look for reports from the IMU
+//Look for reports from the IMU
   if (myIMU.dataAvailable() == true)
   {
     counter++;
@@ -94,29 +97,20 @@ void loop()
         counter = 0;
       }
     }
+
+//Get data from IMU
     float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
     float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
     float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
 
+//Get data from TOF
     int distance = sensor.readRangeSingleMillimeters();
 
-//    Serial.print("Roll: ");
-//    Serial.print(roll, 1);
-//    Serial.print(F(","));
-//    Serial.print("Pich: ");
-//    Serial.print(pitch, 1);
-//    Serial.print(F(","));
-//    Serial.print("Yaw: ");
-//    Serial.print(yaw, 1);
 
-    //Serial.print("   Distanse in mm: ");
-    //Serial.print(distance);
      if (sensor.timeoutOccurred()) { Serial.print(" TIMEOUT"); }
 
-    //Serial.println();
-    
-  
-  
+//-----PID control-----
+
   // set target position
   int target = 300;
   //int target = 250*sin(prevT/1e6);
@@ -158,6 +152,7 @@ void loop()
   // store previous error
   eprev = e;
 
+
   //Serial.print(target);
   //Serial.print(" ");
   //Serial.print(pos);
@@ -167,6 +162,7 @@ void loop()
   }
   
 }
+
 
 void setProp(int pwmval, int escPin)
 {
