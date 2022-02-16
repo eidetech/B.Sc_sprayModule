@@ -33,6 +33,7 @@
 BNO080 myIMU;
 VL53L0X sensor;
 Servo actuator;
+Servo ESC;
 
 int pos = 0;
 long prevT = 0;
@@ -70,11 +71,14 @@ void setup()
   sensor.init();
   sensor.setTimeout(500);
 
-  analogWrite(11, 0);
-  delay(1000);
+  
 
   actuator.attach(5);
   TCCR0B = (TCCR0B & 0b11111000) | 0x02;
+
+  ESC.attach(11,1000,2000);
+  ESC.write(0);
+  delay(5000); // delay to allow the ESC to recognize the stopped signal.
 }
 
 
@@ -84,8 +88,8 @@ void loop()
   if (myIMU.dataAvailable() == true)
   {
     counter++;
-    Serial.print("Counter: ");
-    Serial.println(counter);
+    //Serial.print("Counter: ");
+    //Serial.println(counter);
     if(spray && counter <= 50)
     {
       actuate();
@@ -112,7 +116,7 @@ void loop()
 //-----PID control-----
 
   // set target position
-  int target = 300;
+  int target = 520;
   //int target = 250*sin(prevT/1e6);
 
   //PID constants
@@ -142,12 +146,13 @@ void loop()
   
   // motor power
   float pwr = fabs(u);
-  if( pwr > 255 ){
-    pwr = 255;
+  if( pwr > 180 ){
+    pwr = 180;
   }
   
   //SEND PWM
-  analogWrite(11, pwr);
+  
+  ESC.write(pwr);
 
   // store previous error
   eprev = e;
@@ -155,8 +160,8 @@ void loop()
 
   //Serial.print(target);
   //Serial.print(" ");
-  //Serial.print(pos);
-  //Serial.println();
+  Serial.print(pos);
+  Serial.println();
   Serial.print(pwr);
   Serial.println();
   }
