@@ -47,8 +47,8 @@ int counter = 0;
 void setup()
 {
   Serial.begin(115200);
-  Serial.println();
-  Serial.println("Spray Module position");
+  //Serial.println();
+  //Serial.println("Spray Module position");
 
   Wire.begin();
 
@@ -63,8 +63,8 @@ void setup()
   Wire.setClock(400000); //Increase I2C data rate to 400kHz
   myIMU.enableRotationVector(1); //Send data update every 50ms
 
-  Serial.println(F("Rotation vector enabled"));
-  Serial.println(F("Output in form roll, pitch, yaw"));
+  //Serial.println(F("Rotation vector enabled"));
+  //Serial.println(F("Output in form roll, pitch, yaw"));
 
 
 //Time of Flight sensor
@@ -158,11 +158,11 @@ void loop()
   eprev = e;
 
 
-  //Serial.print(target);
-  //Serial.print(" ");
+  //Serial.print(",");
+  //Serial.print(",");
   Serial.print(pos);
-  Serial.println();
-  Serial.print(pwr);
+  Serial.print(",");
+  Serial.print(millis());
   Serial.println();
   }
   
