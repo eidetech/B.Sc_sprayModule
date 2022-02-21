@@ -35,6 +35,19 @@ VL53L0X sensor;
 Servo actuator;
 Servo ESC;
 
+#define KP_POT A0
+#define KI_POT A1
+#define KD_POT A2
+#define RED_BUTTON 2
+
+int kp_analog = 0;
+int ki_analog = 0;
+int kd_analog = 0;
+
+bool regulate = false;
+int lastButtonState;
+int currentButtonState;
+
 int pos = 0;
 long prevT = 0;
 float eprev = 0;
@@ -46,132 +59,170 @@ int counter = 0;
 
 void setup()
 {
-  Serial.begin(115200);
-  //Serial.println();
-  //Serial.println("Spray Module position");
+	Serial.begin(115200);
 
-  Wire.begin();
+	pinMode(RED_BUTTON, INPUT_PULLUP);
 
-  if (myIMU.begin() == false)
-  {
-    Serial.println(F("BNO080 not detected at default I2C address"));
-    while (1)
-      ;
-  }
+	Wire.begin();
 
-//Init I2C and IMU
-  Wire.setClock(400000); //Increase I2C data rate to 400kHz
-  myIMU.enableRotationVector(1); //Send data update every 50ms
+	if (myIMU.begin() == false)
+	{
+		Serial.println(F("BNO080 not detected at default I2C address"));
+		while (1);
+  	}
 
-  //Serial.println(F("Rotation vector enabled"));
-  //Serial.println(F("Output in form roll, pitch, yaw"));
+	//Init I2C and IMU
+	Wire.setClock(400000); //Increase I2C data rate to 400kHz
+	myIMU.enableRotationVector(1); //Send data update every 50ms
+
+	//Serial.println(F("Rotation vector enabled"));
+	//Serial.println(F("Output in form roll, pitch, yaw"));
 
 
-//Time of Flight sensor
-  sensor.init();
-  sensor.setTimeout(500);
+	//Time of Flight sensor
+	sensor.init();
+	sensor.setTimeout(500);
 
-  
 
-  actuator.attach(5);
-  TCCR0B = (TCCR0B & 0b11111000) | 0x02;
 
-  ESC.attach(11,1000,2000);
-  ESC.write(0);
-  delay(5000); // delay to allow the ESC to recognize the stopped signal.
+	actuator.attach(5);
+	TCCR0B = (TCCR0B & 0b11111000) | 0x02;
+
+	ESC.attach(11,1000,2000);
+	ESC.write(0);
+	delay(5000); // delay to allow the ESC to recognize the stopped signal.
 }
 
 
 void loop()
 {
-//Look for reports from the IMU
-  if (myIMU.dataAvailable() == true)
-  {
-    counter++;
-    //Serial.print("Counter: ");
-    //Serial.println(counter);
-    if(spray && counter <= 50)
-    {
-      actuate();
-    }else
-    {
-      disengage();
-      if(counter >= 100)
-      {
-        counter = 0;
-      }
+	// Read analog potentiometer values
+    kp_analog = analogRead(KP_POT);
+    ki_analog = analogRead(KI_POT);
+    kd_analog = analogRead(KD_POT);
+
+	// Map the analog potentiometer values to matching PID values
+    float kp = map(kp_analog, 0, 1023, 0, 100);
+    float ki = map(ki_analog, 0, 1023, 0, 1000);
+    float kd = map(kd_analog, 0, 1023, 0, 1000);
+
+	kp = kp/100;
+	ki = ki/100000;
+	kd = kd/10000;
+
+	Serial.print("Kp: ");
+	Serial.print(kp, 4);
+	Serial.print(", ");
+	Serial.print("Ki: ");
+	Serial.print(ki, 4);
+	Serial.print(", ");
+	Serial.print("Kd: ");
+	Serial.print(kd, 4);
+	Serial.print(" - Control Mode: ");
+	if (regulate)
+	{
+		Serial.print("PID - Position: ");
+	}else
+	{
+		Serial.println(" IDLE");
+		ESC.write(0);
+	}
+
+	lastButtonState    = currentButtonState;
+    currentButtonState = digitalRead(RED_BUTTON);
+
+	// If the button is pressed, toggle the on/off the control loop
+	if(lastButtonState == HIGH && currentButtonState == LOW) {
+    regulate = !regulate;
     }
 
-//Get data from IMU
-    float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
-    float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
-    float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
+	// If the regulate bool is true, then start PID
+	if (regulate)
+	{
+		//Look for reports from the IMU
+		if (myIMU.dataAvailable() == true)
+		{
+			counter++;
+			//Serial.print("Counter: ");
+			//Serial.println(counter);
+		if(spray && counter <= 50)
+		{
+			actuate();
+		}else
+		{
+			disengage();
+			if(counter >= 100)
+			{
+			counter = 0;
+			}
+		}
 
-//Get data from TOF
-    int distance = sensor.readRangeSingleMillimeters();
+		//Get data from IMU
+		float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
+		float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
+		float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
+
+		//Get data from TOF
+		int distance = -sensor.readRangeSingleMillimeters();
+		//int distance = roll;
 
 
-     if (sensor.timeoutOccurred()) { Serial.print(" TIMEOUT"); }
 
-//-----PID control-----
+		if (sensor.timeoutOccurred()) { Serial.print(" TIMEOUT"); }
 
-  // set target position
-  int target = 520;
-  //int target = 250*sin(prevT/1e6);
+		//-----PID control-----
 
-  //PID constants
-  float kp = 1;
-  float kd = 0;
-  float ki = 0;
+		// set target position
+		int target = 690;
+		//int target = 250*sin(prevT/1e6);
 
-  //distanc from wall
-  pos = distance;
-  
-  // error
-  int e = pos-target;
+		//PID constants (commented out due to potentiometer implementation)
+		//   float kp = 1;
+		//   float kd = 0;
+		//   float ki = 0;
 
-  // time difference
-  long currT = micros();
-  float deltaT = ((float) (currT - prevT))/( 1.0e6 );
-  prevT = currT;
-  
-  //derivative
-  float dedt = (e-eprev)/(deltaT);
+		//distanc from wall
+		pos = -distance;
+		
+		// error
+		int e = pos-target;
 
-  // integral
-  eintegral = eintegral + e*deltaT;
+		// time difference
+		long currT = micros();
+		float deltaT = ((float) (currT - prevT))/( 1.0e6 );
+		prevT = currT;
+		
+		//derivative
+		float dedt = (e-eprev)/(deltaT);
 
-  //control signal
-  float u = kp*e + kd*dedt + ki*eintegral;
-  
-  // motor power
-  float pwr = fabs(u);
-  if( pwr > 180 ){
-    pwr = 180;
+		// integral
+		eintegral = eintegral + e*deltaT;
+
+		//control signal
+		float u = kp*e + kd*dedt + ki*eintegral;
+		
+		// motor power
+		float pwr = fabs(u);
+		if( pwr > 180 ){
+			pwr = 180;
+		}
+		
+		//SEND PWM
+		
+		ESC.write(pwr);
+
+		// store previous error
+		eprev = e;
+
+		Serial.print(pos);
+		Serial.print(", ");
+		Serial.print(millis());
+		Serial.print(", error: ");
+		Serial.print(e);
+		Serial.print(", control signal: ");
+		Serial.println(pwr);
+		}
   }
-  
-  //SEND PWM
-  
-  ESC.write(pwr);
-
-  // store previous error
-  eprev = e;
-
-
-  //Serial.print(",");
-  //Serial.print(",");
-  Serial.print(pos);
-  Serial.print(",");
-  Serial.print(millis());
-  Serial.println();
-  }
-  
-}
-
-
-void setProp(int pwmval, int escPin)
-{
-  analogWrite(escPin, pwmval);
 }
 
 void actuate()
