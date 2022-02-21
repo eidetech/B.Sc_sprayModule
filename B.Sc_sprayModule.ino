@@ -141,22 +141,9 @@ void loop()
 	{
 		//Look for reports from the IMU
 		if (myIMU.dataAvailable() == true)
-		{
-			counter++;
-			//Serial.print("Counter: ");
-			//Serial.println(counter);
-		if(spray && counter <= 50)
-		{
-			actuate();
-		}else
-		{
-			disengage();
-			if(counter >= 100)
-			{
-			counter = 0;
-			}
-		}
-
+		{		
+		actuate();
+		
 		//Get data from IMU
 		float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
 		float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
@@ -222,6 +209,9 @@ void loop()
 		Serial.print(", control signal: ");
 		Serial.println(pwr);
 		}
+  }
+  else{
+      disengage();
   }
 }
 
