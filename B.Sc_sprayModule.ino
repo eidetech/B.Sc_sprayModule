@@ -39,6 +39,9 @@ Servo ESC;
 #define KI_POT A1
 #define KD_POT A2
 #define RED_BUTTON 2
+#define EN_A 8
+#define EN_B 9
+#define PWM 6
 
 int kp_analog = 0;
 int ki_analog = 0;
@@ -60,7 +63,9 @@ int counter = 0;
 void setup()
 {
 	Serial.begin(115200);
-
+  pinMode(PWM ,OUTPUT);
+  pinMode(EN_A ,OUTPUT);
+  pinMode(EN_B ,OUTPUT);
 	pinMode(RED_BUTTON, INPUT_PULLUP);
 
 	Wire.begin();
@@ -126,6 +131,7 @@ void loop()
 	{
 		Serial.println(" IDLE");
 		ESC.write(0);
+    runMotor(1,0,PWM,EN_A,EN_B);
 	}
 
 	lastButtonState    = currentButtonState;
@@ -160,7 +166,7 @@ void loop()
 		//-----PID control-----
 
 		// set target position
-		int target = 690;
+		int target = 550;
 		//int target = 250*sin(prevT/1e6);
 
 		//PID constants (commented out due to potentiometer implementation)
@@ -187,16 +193,31 @@ void loop()
 
 		//control signal
 		float u = kp*e + kd*dedt + ki*eintegral;
-		
+
+    // motor power
+    float pwr = fabs(u);
+    if( pwr > 215 ){
+    pwr = 215;
+    }
+    
+    // motor direction
+    int dir = 1;
+    if(u<0){
+    dir = -1;
+    }
+    
+    // signal the motor
+    runMotor(dir,pwr,PWM,EN_A,EN_B);
+    
 		// motor power
-		float pwr = fabs(u);
-		if( pwr > 180 ){
-			pwr = 180;
-		}
-		
+		//float pwr = fabs(u);
+		//if( pwr > 180 ){
+		//	pwr = 180;
+		//}
+
+    
 		//SEND PWM
-		
-		ESC.write(pwr);
+		//ESC.write(pwr);
 
 		// store previous error
 		eprev = e;
@@ -214,6 +235,27 @@ void loop()
       disengage();
   }
 }
+
+void runMotor(int dir, int pwmVal, int pwmPin, int in1, int in2)
+{
+    // Set the direction of the motor
+    if(dir == 1){
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+    }
+    else if(dir == -1){
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
+    }
+    else{
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    }
+
+    // Output PWM signal to motor driver
+    analogWrite(pwmPin, pwmVal);  
+}
+
 
 void actuate()
 {
