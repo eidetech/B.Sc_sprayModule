@@ -48,7 +48,7 @@ bool regulate = false;
 int lastButtonState;
 int currentButtonState;
 
-int pos = 0;
+float pos = 0;
 long prevT = 0;
 float eprev = 0;
 float eintegral = 0;
@@ -60,6 +60,23 @@ int counter = 0;
 void setup()
 {
 	Serial.begin(115200);
+
+      //Serial.print("Angle");
+      //Serial.print(",");
+      //Serial.print("Distance");
+      //Serial.print(",");
+      //Serial.print("Error");
+      //Serial.print(",");
+      //Serial.print("U");
+      //Serial.print(",");
+      //Serial.print("P");
+      //Serial.print(",");
+      //Serial.print("I");
+      //Serial.print(",");
+      //Serial.print("D");
+      //Serial.print(",");
+      //Serial.println("Time");
+      
 
 	pinMode(RED_BUTTON, INPUT_PULLUP);
 
@@ -102,30 +119,52 @@ void loop()
     kd_analog = analogRead(KD_POT);
 
 	// Map the analog potentiometer values to matching PID values
-    float kp = map(kp_analog, 0, 1023, 0, 100);
+    float kp = map(kp_analog, 0, 1023, 0, 1000);
     float ki = map(ki_analog, 0, 1023, 0, 1000);
     float kd = map(kd_analog, 0, 1023, 0, 1000);
 
 	kp = kp/100;
 	ki = ki/100000;
 	kd = kd/10000;
+float roll = 0;
+      //Look for reports from the IMU
+    if (myIMU.dataAvailable() == true)
+    {   
+    //Get data from IMU
+     roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
+    float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
+    float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
+    }
 
-	Serial.print("Kp: ");
-	Serial.print(kp, 4);
-	Serial.print(", ");
-	Serial.print("Ki: ");
-	Serial.print(ki, 4);
-	Serial.print(", ");
-	Serial.print("Kd: ");
-	Serial.print(kd, 4);
-	Serial.print(" - Control Mode: ");
+    //Get data from TOF
+    int distance = sensor.readRangeSingleMillimeters();
+    if (sensor.timeoutOccurred()) { Serial.print(" TIMEOUT"); }
+    
+    // set target position
+    float target = -4;
+      Serial.print(distance);
+      Serial.print(",");
+      Serial.print(-roll);
+      Serial.print(",");
+      //Serial.println(target);
+      Serial.println(millis());
+
+//	Serial.print("Kp: ");
+//	Serial.print(kp, 4);
+//	Serial.print(", ");
+//	Serial.print("Ki: ");
+//	Serial.print(ki, 4);
+//	Serial.print(", ");
+//	Serial.print("Kd: ");
+//	Serial.print(kd, 4);
+//	Serial.print(" - Control Mode: ");
 	if (regulate)
 	{
-		Serial.print("PID - Position: ");
+//		Serial.print("PID - Position: ");
 	}else
 	{
-		Serial.println(" IDLE");
-		ESC.write(0);
+		//Serial.println(" IDLE");
+		//ESC.write(80);
 	}
 
 	lastButtonState    = currentButtonState;
@@ -139,40 +178,29 @@ void loop()
 	// If the regulate bool is true, then start PID
 	if (regulate)
 	{
-		//Look for reports from the IMU
-		if (myIMU.dataAvailable() == true)
-		{		
-		actuate();
 		
-		//Get data from IMU
-		float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
-		float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
-		float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
-
-		//Get data from TOF
-		int distance = -sensor.readRangeSingleMillimeters();
-		//int distance = roll;
-
-
-
-		if (sensor.timeoutOccurred()) { Serial.print(" TIMEOUT"); }
+		actuate();
 
 		//-----PID control-----
 
-		// set target position
-		int target = 690;
+
 		//int target = 250*sin(prevT/1e6);
 
 		//PID constants (commented out due to potentiometer implementation)
 		//   float kp = 1;
 		//   float kd = 0;
 		//   float ki = 0;
-
+    
 		//distanc from wall
-		pos = -distance;
+		pos = -roll;
 		
 		// error
-		int e = pos-target;
+		float e = pos-target;
+
+   if(e < 0)
+   {
+    e = 0;
+   }
 
 		// time difference
 		long currT = micros();
@@ -190,25 +218,37 @@ void loop()
 		
 		// motor power
 		float pwr = fabs(u);
+    pwr = 80+pwr;
 		if( pwr > 180 ){
 			pwr = 180;
 		}
 		
 		//SEND PWM
 		
-		ESC.write(pwr);
+		//ESC.write(pwr);
 
 		// store previous error
 		eprev = e;
 
-		Serial.print(pos);
-		Serial.print(", ");
-		Serial.print(millis());
-		Serial.print(", error: ");
-		Serial.print(e);
-		Serial.print(", control signal: ");
-		Serial.println(pwr);
-		}
+		  //Serial.print(roll);
+		  //Serial.print(",");
+		  //Serial.print(pos);
+      //Serial.print(" ");
+      //Serial.print(target);
+      //Serial.print(",");
+      //Serial.print(" ");
+  	  //Serial.println(e);
+      //Serial.print(",");
+      //Serial.print(pwr);
+      //Serial.print(",");
+      //Serial.print(kp,4);
+      //Serial.print(",");
+      //Serial.print(ki,4);
+      //Serial.print(",");
+      //Serial.print(kd,4);
+      //Serial.print(",");
+      //Serial.println(millis());
+		
   }
   else{
       disengage();
