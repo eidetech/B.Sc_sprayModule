@@ -72,7 +72,7 @@ void setup()
 
 	if (myIMU.begin() == false)
 	{
-		Serial.println(F("BNO080 not detected at default I2C address"));
+		//Serial.println(F("BNO080 not detected at default I2C address"));
 		while (1);
   	}
 
@@ -107,31 +107,31 @@ void loop()
     kd_analog = analogRead(KD_POT);
 
 	// Map the analog potentiometer values to matching PID values
-    float kp = map(kp_analog, 0, 1023, 0, 100);
+    float kp = map(kp_analog, 0, 1023, 0, 1000);
     float ki = map(ki_analog, 0, 1023, 0, 1000);
     float kd = map(kd_analog, 0, 1023, 0, 1000);
 
-	kp = kp/100;
-	ki = ki/100000;
-	kd = kd/10000;
+	kp = (kp/100)*10;
+	ki = (ki/100000)*10;
+	kd = (kd/10000)*10;
 
-	Serial.print("Kp: ");
-	Serial.print(kp, 4);
-	Serial.print(", ");
-	Serial.print("Ki: ");
-	Serial.print(ki, 4);
-	Serial.print(", ");
-	Serial.print("Kd: ");
-	Serial.print(kd, 4);
-	Serial.print(" - Control Mode: ");
+//	Serial.print("Kp: ");
+//	Serial.print(kp, 4);
+//	Serial.print(", ");
+//	Serial.print("Ki: ");
+//	Serial.print(ki, 4);
+//	Serial.print(", ");
+//	Serial.print("Kd: ");
+//	Serial.print(kd, 4);
+//	Serial.print(" - Control Mode: ");
 	if (regulate)
 	{
-		Serial.print("PID - Position: ");
+		//Serial.print("PID - Position: ");
 	}else
 	{
-		Serial.println(" IDLE");
+		//Serial.println(" IDLE");
 		ESC.write(0);
-    runMotor(1,0,PWM,EN_A,EN_B);
+    //runMotor(1,0,PWM,EN_A,EN_B);
 	}
 
 	lastButtonState    = currentButtonState;
@@ -145,11 +145,16 @@ void loop()
 	// If the regulate bool is true, then start PID
 	if (regulate)
 	{
+    actuate();
+  }
+  else{
+      disengage();
+  }
 		//Look for reports from the IMU
 		if (myIMU.dataAvailable() == true)
 		{		
-		actuate();
 		
+			
 		//Get data from IMU
 		float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
 		float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
@@ -166,7 +171,7 @@ void loop()
 		//-----PID control-----
 
 		// set target position
-		int target = 550;
+		int target = -0.3;
 		//int target = 250*sin(prevT/1e6);
 
 		//PID constants (commented out due to potentiometer implementation)
@@ -175,7 +180,7 @@ void loop()
 		//   float ki = 0;
 
 		//distanc from wall
-		pos = -distance;
+		pos = -roll;
 		
 		// error
 		int e = pos-target;
@@ -211,8 +216,8 @@ void loop()
     
 		// motor power
 		//float pwr = fabs(u);
-		//if( pwr > 180 ){
-		//	pwr = 180;
+		//if( pwr > 120 ){
+		//	pwr = 120;
 		//}
 
     
@@ -221,20 +226,30 @@ void loop()
 
 		// store previous error
 		eprev = e;
-
+    
+    Serial.print(millis());
+    Serial.print(", ");
 		Serial.print(pos);
 		Serial.print(", ");
-		Serial.print(millis());
-		Serial.print(", error: ");
-		Serial.print(e);
-		Serial.print(", control signal: ");
-		Serial.println(pwr);
+    Serial.print(roll);
+    Serial.print(", ");
+    Serial.print(e);
+    Serial.print(", ");
+    Serial.print(kp, 4);
+    Serial.print(", ");
+    Serial.print(ki, 4);
+    Serial.print(", ");
+    Serial.println(pwr);
+    
+		
+		//Serial.print(", error: ");
+		//Serial.print(e);
+		//Serial.print(", control signal: ");
+		//Serial.println(pwr);
 		}
+  
   }
-  else{
-      disengage();
-  }
-}
+
 
 void runMotor(int dir, int pwmVal, int pwmPin, int in1, int in2)
 {
