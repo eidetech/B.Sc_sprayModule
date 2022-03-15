@@ -50,7 +50,9 @@ int kd_analog = 0;
 bool regulate = false;
 int lastButtonState;
 int currentButtonState;
+float roll = 0;
 
+float e;
 float pos = 0;
 long prevT = 0;
 float eprev = 0;
@@ -58,8 +60,6 @@ float eintegral = 0;
 
 bool spray = false;
 int counter = 0;
-
-
 
  
 
@@ -79,7 +79,7 @@ void setup()
 	//Init I2C and IMU
   
 	//Wire.setClock(400000); //Increase I2C data rate to 400kHz
-	myIMU.enableRotationVector(10); //Send data update every 50ms
+	myIMU.enableRotationVector(50); //Send data update every 50ms
 
 	//Serial.println(F("Rotation vector enabled"));
 	//Serial.println(F("Output in form roll, pitch, yaw"));
@@ -99,18 +99,20 @@ void setup()
 	delay(5000); // delay to allow the ESC to recognize the stopped signal.
 
 
-    stepper.setMaxSpeed(10000); //SPEED = Steps / second
-    stepper.setAcceleration(10000); //ACCELERATION = Steps /(second)^2
- 
-    stepper.disableOutputs(); //disable outputs
+  stepper.setMaxSpeed(3000); //SPEED = Steps / second
+  stepper.setAcceleration(1000); //ACCELERATION = Steps /(second)^2
+  stepper.disableOutputs(); //disable outputs
+    
 }
 
 
 void loop()
 {
-    stepper.enableOutputs(); //enable pins
-    stepper.run(); //step the motor (this will step the motor by 1 step at each loop)
-    stepper.move(1);
+    
+  
+  //stepper.run(); //step the motor (this will step the motor by 1 step at each loop)
+  
+
   
 	// Read analog potentiometer values
     kp_analog = analogRead(KP_POT);
@@ -122,18 +124,19 @@ void loop()
     float ki = map(ki_analog, 0, 1023, 0, 1000);
     float kd = map(kd_analog, 0, 1023, 0, 1000);
 
-	kp = (kp/100)*10;
-	ki = (ki/100000)*10;
-	kd = (kd/10000)*10;
+	kp = (kp/100)*1000;
+	ki = (ki/100)*1000;
+	kd = (kd/100)*1000;
 
-//	Serial.print("Kp: ");
-//	Serial.print(kp, 4);
-//	Serial.print(", ");
-//	Serial.print("Ki: ");
-//	Serial.print(ki, 4);
-//	Serial.print(", ");
-//	Serial.print("Kd: ");
-//	Serial.print(kd, 4);
+	Serial.print("Kp: ");
+	Serial.print(kp, 4);
+	Serial.print(", ");
+	Serial.print("Ki: ");
+	Serial.print(ki, 4);
+	Serial.print(", ");
+	Serial.print("Kd: ");
+	Serial.print(kd, 4);
+  Serial.print(", ");
 //	Serial.print(" - Control Mode: ");
 
 	if (regulate)
@@ -183,7 +186,7 @@ void loop()
 		//-----PID control-----
 
 		// set target position
-		int target = -0.3;
+		int target = 2.3;
 		//int target = 250*sin(prevT/1e6);
 
 		//PID constants (commented out due to potentiometer implementation)
@@ -192,10 +195,10 @@ void loop()
 		//   float ki = 0;
 
 		//feedback data distance or angle
-		pos = -roll;
+		float pos = -roll;
 		
 		// error
-		float e = pos-target;
+		float e = (pos-target);
 
 		// time difference
 		long currT = micros();
@@ -213,6 +216,18 @@ void loop()
 
 		// store previous error
 		eprev = e;
+
+    int v = (int)-u;
+    
+    if(v > 1200){
+      v = 1200;
+      }
+      
+    if(v<-1200){
+      v = -1200;
+    }
+    
+    stepper.runToNewPosition(v);
     
     //Serial.print(millis());
     //Serial.print(", ");
@@ -220,15 +235,15 @@ void loop()
 		Serial.print(", ");
     //Serial.print(roll);
     //Serial.print(", ");
-    Serial.print(e);
-    Serial.println(", ");
+    Serial.print(v);
+    Serial.print(", ");
     //Serial.print(kp, 4);
     //Serial.print(", ");
     //Serial.print(ki, 4);
     //Serial.print(", ");
     //Serial.println(pwr);
 		//Serial.print(", error: ");
-		//Serial.print(e);
+		Serial.println(e);
 		//Serial.print(", control signal: ");
 		//Serial.println(pwr);
 		
@@ -238,9 +253,13 @@ void loop()
 void actuate()
 {
   actuator.write(50);
+  //stepper.runToNewPosition();
+  //delay(10000);
+  stepper.enableOutputs(); //enable pins
 }
 
 void disengage()
 {
   actuator.write(90);
+  //stepper.runToNewPosition(0);
 }
