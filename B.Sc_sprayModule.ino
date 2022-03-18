@@ -29,32 +29,34 @@
 #include "SparkFun_BNO080_Arduino_Library.h" 
 #include <VL53L0X.h>
 #include <Servo.h>
-#include <AccelStepper.h>
 
 BNO080 myIMU;
 VL53L0X sensor;
 Servo actuator;
 Servo ESC;
-AccelStepper stepper(1, 6, 3);// stepper nr. 1,  pulses Digital 6 (CLK), direction Digital 3 (CCW), enable 4
-
 
 #define KP_POT A0
 #define KI_POT A1
 #define KD_POT A2
 #define RED_BUTTON 2
+#define EN_A 9
+#define EN_B 8
+#define PWM 6
+
 
 int kp_analog = 0;
 int ki_analog = 0;
 int kd_analog = 0;
 
-bool regulate = false;
+
 int lastButtonState;
 int currentButtonState;
-float roll = 0;
+bool regulate = false;
 
 float e;
 float pos = 0;
 long prevT = 0;
+
 float eprev = 0;
 float eintegral = 0;
 
@@ -66,6 +68,9 @@ int counter = 0;
 void setup()
 {
 	Serial.begin(115200);
+  pinMode(PWM ,OUTPUT);
+  pinMode(EN_A ,OUTPUT);
+  pinMode(EN_B ,OUTPUT);
 	pinMode(RED_BUTTON, INPUT_PULLUP);
 
 	Wire.begin();
@@ -92,29 +97,13 @@ void setup()
   //Actuate spray gun
   actuator.attach(5);
 	TCCR0B = (TCCR0B & 0b11111000) | 0x02;
-
-  //Fligth propeller
-	ESC.attach(11,1000,2000);
-	ESC.write(0);
-	delay(5000); // delay to allow the ESC to recognize the stopped signal.
-
-
-  stepper.setMaxSpeed(3000); //SPEED = Steps / second
-  stepper.setAcceleration(1000); //ACCELERATION = Steps /(second)^2
-  stepper.disableOutputs(); //disable outputs
     
 }
-
 
 void loop()
 {
     
-  
-  //stepper.run(); //step the motor (this will step the motor by 1 step at each loop)
-  
-
-  
-	// Read analog potentiometer values
+  // Read analog potentiometer values
     kp_analog = analogRead(KP_POT);
     ki_analog = analogRead(KI_POT);
     kd_analog = analogRead(KD_POT);
@@ -124,28 +113,28 @@ void loop()
     float ki = map(ki_analog, 0, 1023, 0, 1000);
     float kd = map(kd_analog, 0, 1023, 0, 1000);
 
-	kp = (kp/100)*1000;
-	ki = (ki/100)*1000;
-	kd = (kd/100)*1000;
+	kp = (kp/100)*10;
+	ki = (ki/100)*1;
+	kd = (kd/100)*1;
 
-	Serial.print("Kp: ");
-	Serial.print(kp, 4);
-	Serial.print(", ");
-	Serial.print("Ki: ");
-	Serial.print(ki, 4);
-	Serial.print(", ");
-	Serial.print("Kd: ");
-	Serial.print(kd, 4);
-  Serial.print(", ");
-//	Serial.print(" - Control Mode: ");
+	//Serial.print("Kp: ");
+	//Serial.print(kp, 4);
+	//Serial.print(", ");
+	//Serial.print("Ki: ");
+	//Serial.print(ki, 4);
+	//Serial.print(", ");
+	//Serial.print("Kd: ");
+	//Serial.print(kd, 4);
+  //Serial.print(", ");
+  //Serial.print(" - Control Mode: ");
 
 	if (regulate)
 	{
 		//Serial.print("PID - Position: ");
-	}else
+	}
+	else
 	{
 		//Serial.println(" IDLE");
-		ESC.write(0);
     //runMotor(1,0,PWM,EN_A,EN_B);
 	}
 
@@ -153,7 +142,8 @@ void loop()
     currentButtonState = digitalRead(RED_BUTTON);
 
 	// If the button is pressed, toggle the on/off the control loop
-	if(lastButtonState == HIGH && currentButtonState == LOW) {
+	if(lastButtonState == HIGH && currentButtonState == LOW) 
+	{
     regulate = !regulate;
     }
 
@@ -175,6 +165,7 @@ void loop()
 		float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
 		//float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
 		//float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
+    float getLinAccelX();
 
 		//Get data from TOF
 		//int distance = -sensor.readRangeSingleMillimeters();
@@ -186,7 +177,7 @@ void loop()
 		//-----PID control-----
 
 		// set target position
-		int target = 2.3;
+		int target = 1.20;
 		//int target = 250*sin(prevT/1e6);
 
 		//PID constants (commented out due to potentiometer implementation)
@@ -195,7 +186,7 @@ void loop()
 		//   float ki = 0;
 
 		//feedback data distance or angle
-		float pos = -roll;
+		float pos = roll;
 		
 		// error
 		float e = (pos-target);
@@ -214,38 +205,47 @@ void loop()
 		//control signal
 		float u = kp*e + kd*dedt + ki*eintegral;
 
+    // motor power
+    int pwm = fabs((int)u);
+   
+    
+//    if(pwm < 110){
+//    digitalWrite(EN_A, LOW);
+//    digitalWrite(EN_B, LOW);
+//    }
+    
+    // motor direction
+    int dir = 1;
+    if(u<0){
+    dir = -1;
+    }
+    
+    // signal the motor
+    runMotor(dir,pwm,PWM,EN_A,EN_B);
+  
 		// store previous error
 		eprev = e;
 
-    int v = (int)-u;
-    
-    if(v > 1200){
-      v = 1200;
-      }
-      
-    if(v<-1200){
-      v = -1200;
-    }
-    
-    stepper.runToNewPosition(v);
-    
+        
+  // Output
+   
     //Serial.print(millis());
     //Serial.print(", ");
-		Serial.print(pos, 4);
-		Serial.print(", ");
+		
+		Serial.print(roll);
+		Serial.print(",");
     //Serial.print(roll);
+    //Serial.print(",");
+    //Serial.println(vel);
     //Serial.print(", ");
-    Serial.print(v);
+    Serial.print(kp, 4);
     Serial.print(", ");
-    //Serial.print(kp, 4);
-    //Serial.print(", ");
     //Serial.print(ki, 4);
-    //Serial.print(", ");
-    //Serial.println(pwr);
-		//Serial.print(", error: ");
-		Serial.println(e);
-		//Serial.print(", control signal: ");
-		//Serial.println(pwr);
+    //Serial.print(",");
+    //Serial.println(e);
+		//Serial.print(",");
+		Serial.println(pwm);
+		
 		
 		}
   }
@@ -253,13 +253,30 @@ void loop()
 void actuate()
 {
   actuator.write(50);
-  //stepper.runToNewPosition();
-  //delay(10000);
-  stepper.enableOutputs(); //enable pins
 }
 
 void disengage()
 {
   actuator.write(90);
-  //stepper.runToNewPosition(0);
+ 
+}
+
+void runMotor(int dir, int pwmVal, int pwmPin, int in1, int in2)
+{
+    // Set the direction of the motor
+    if(dir == 1){
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+    }
+    else if(dir == -1){
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
+    }
+    else{
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    }
+
+    // Output PWM signal to motor driver
+    analogWrite(pwmPin, pwmVal);  
 }
