@@ -37,12 +37,21 @@ Servo ESC;
 
 #define RED_BUTTON 2
 
+float kp = 50;
+float ki = 0;
+float kd = 0.1;
+
+float target = -3;
+
 
 
 bool regulate = false;
+bool printNumber = true;
+
 int lastButtonState;
 int currentButtonState;
 
+float e;
 long prevT = 0;
 float eprev = 0;
 float eintegral = 0;
@@ -85,7 +94,7 @@ void setup()
   TCCR0B = (TCCR0B & 0b11111000) | 0x02;
 
   ESC.attach(11);
-  ESC.write(90);
+  ESC.write(89);
   delay(500);
 }
 
@@ -130,21 +139,17 @@ void loop()
     if (sensor.timeoutOccurred()) { Serial.print(" TIMEOUT"); }
 
     //-----PID control-----
-
-    // set target position
-    float target = -2.03;
+    
     //int target = 250*sin(prevT/1e6);
 
     //PID constants (commented out due to potentiometer implementation)
-       float kp = 20;
-       float kd = 0;
-       float ki = 0;
+       
 
     //distanc from wall
     float pos = -roll;
     
     // error
-    float e = pos-target;
+    e = pos-target;
 
     // time difference
     long currT = micros();
@@ -160,7 +165,9 @@ void loop()
     //control signal
     float u = kp*e + kd*dedt + ki*eintegral;
 
-    int pwm = (int)fabs(-u+89);
+    int pwm = (int)-u+89;
+    
+    
 
     //if(pwm < 89 )
     //{
@@ -184,16 +191,49 @@ void loop()
 
     //SEND PWM
    
-    
+    int input = Serial.read();
+
+    if(input== 112)  //p = 112 ASCII
+          {if (Serial.available()>0)
+          {kp=Serial.parseFloat();
+         
+          }
+    }
+
+    if(input== 105)  //i = 105 ASCII
+          {if (Serial.available()>0)
+          {ki=Serial.parseFloat();
+          }
+    }
+
+    if(input== 100)  //d = 100 ASCII
+    {
+      if (Serial.available()>0)
+      {kd=Serial.parseFloat();
+      }
+    }
+
     ESC.write(pwm);
 
     // store previous error
     eprev = e;
 
-    //Serial.print(kp,4);
-    //Serial.print(", ");
+    if(printNumber){
+      
+    
+    Serial.print("Kp: ");
+    Serial.print(kp,4);
+    Serial.print(", ");
+    Serial.print("Ki: ");
+    Serial.print(ki,4);
+    Serial.print(", ");
+    Serial.print("Kd: ");
+    Serial.print(kd,4);
+    Serial.print(", ");
+    
+    
     Serial.print("IMU deg: ");
-    Serial.print(pos*10+50);
+    Serial.print(pos);
     Serial.print(", ");
     //Serial.print(millis());
     Serial.print("Error: ");
@@ -204,14 +244,34 @@ void loop()
     Serial.print(", ");
     Serial.print("PWM: ");
     Serial.println(pwm);
+    }
+    else{
     
+        
+    
+    //Serial.print("IMU deg: ");
+    Serial.print(pos*10);
+    Serial.print(", ");
+    //Serial.print(millis());
+    //Serial.print("Error: ");
+//    Serial.print(", ");
+//    Serial.print(target);
+    //Serial.print(", ");
+    //Serial.print("U: ");
+    Serial.println(u);
+    //Serial.print(", ");
+    //Serial.print("PWM: ");
+    //Serial.println(pwm);
+    
+    }
     }
     
     
   }
   else{
       disengage();
-      //Look for reports from the IMU
+      
+   //Look for reports from the IMU
     if (myIMU.dataAvailable() == true)
     {   
     
@@ -239,19 +299,17 @@ void loop()
     //-----PID control-----
 
     // set target position
-    float target = -2.03;
+   
     //int target = 250*sin(prevT/1e6);
 
     //PID constants (commented out due to potentiometer implementation)
-       float kp = 10;
-       float kd = 0;
-       float ki = 0;
+    
 
     //distanc from wall
     float pos = -roll;
     
     // error
-    float e = pos-target;
+    e = pos-target;
 
     // time difference
     long currT = micros();
@@ -267,8 +325,10 @@ void loop()
     //control signal
     float u = kp*e + kd*dedt + ki*eintegral;
 
-    int pwm = (int)fabs(-u+90);
+    int pwm = (int)-u+89;
+    
 
+    
     //if(pwm < 93 )
     //{
     //  pwr = pwr-4;
@@ -296,22 +356,51 @@ void loop()
 
     // store previous error
     eprev = e;
-
-    //Serial.print(kp,4);
-    //Serial.print(", ");
+    
+    if(printNumber){
+      
+    
+    Serial.print("Kp: ");
+    Serial.print(kp,4);
+    Serial.print(", ");
+    Serial.print("Ki: ");
+    Serial.print(ki,4);
+    Serial.print(", ");
+    Serial.print("Kd: ");
+    Serial.print(kd,4);
+    Serial.print(", ");
+    
+    
     Serial.print("IMU deg: ");
-    Serial.print(pos*10+50);
+    Serial.print(pos);
     Serial.print(", ");
     //Serial.print(millis());
-//    Serial.print("Error: ");
-//    Serial.print(e);
-//    Serial.print(", ");
-//    Serial.print("U: ");
-//    Serial.print(u);
-//    Serial.print(", ");
+    Serial.print("Error: ");
+    Serial.print(e);
+    Serial.print(", ");
+    Serial.print("U: ");
+    Serial.print(u);
+    Serial.print(", ");
     Serial.print("PWM: ");
     Serial.println(pwm);
+    }
+    else{       
     
+    //Serial.print("IMU deg: ");
+    Serial.print(pos*10);
+    //Serial.print(", ");
+    //Serial.print(millis());
+    //Serial.print("Error: ");
+    //Serial.print(e);
+    Serial.print(", ");
+//    Serial.print(target);
+//    Serial.print(", ");
+    //Serial.print("U: ");
+    Serial.println(u);
+    //Serial.print(", ");
+    //Serial.print("PWM: ");
+    //Serial.println(pwm);
+    }
     }
   }
 }
