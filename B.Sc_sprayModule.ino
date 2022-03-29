@@ -47,11 +47,10 @@ MCP2515 mcp2515(10);
 // ########################################## Defines #########################################
 #define RED_BUTTON 2
 // #################3##################### Global variables ###################################
-float kp = 50;
+float kp = 10;
 float ki = 0;
-float kd = 0.1;
-
-float target = -3;
+float kd = 0.3
+;
 
 bool regulate = false;
 bool printNumber = true;
@@ -59,6 +58,7 @@ bool printNumber = true;
 int lastButtonState;
 int currentButtonState;
 
+float target = 0;
 float e;
 long prevT = 0;
 float eprev = 0;
@@ -99,7 +99,7 @@ void setup()
 	actuator.attach(5);
 	TCCR0B = (TCCR0B & 0b11111000) | 0x02;
 
-	ESC.attach(11);
+	ESC.attach(3);
 	ESC.write(89);
 	delay(500);
 }
@@ -111,7 +111,7 @@ void loop()
 	if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
 		if(canMsg.can_id == 0x1E)
 		{
-			currentState = canMsg.data[0];
+			int currentState = canMsg.data[0];
 			if(currentState == 1)
 			{
 				actuate();
@@ -159,6 +159,15 @@ void loop()
 
 		//int target = 250*sin(prevT/1e6);
 
+    if(regulate)
+    {
+      target = -5;
+    }else
+    {
+      target = -7;
+    }
+
+
 		// Position variable
 		float pos = -roll;
 
@@ -182,12 +191,10 @@ void loop()
 		int pwm = (int)-u+89;
 
 		// ################### If the state of regulate variable is true, then run PID regulator #######################
-		if (regulate)
-		{
+		
 			ESC.write(pwm);
-		}else{
-			ESC.write(89);
-		}
+ 
+		
 		// store previous error
 		eprev = e;    
 
@@ -215,7 +222,6 @@ void loop()
 		}
 
 		// ############################################### Serial printing ##############################################
-		if(printNumber){}
 			Serial.print("Kp: ");
 			Serial.print(kp,4);
 			Serial.print(", ");
@@ -239,8 +245,8 @@ void loop()
 			Serial.print("PWM: ");
 			Serial.println(pwm);
 	}
-  }
 }
+
 
 void actuate()
 {
