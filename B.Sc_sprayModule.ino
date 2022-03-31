@@ -47,7 +47,7 @@ MCP2515 mcp2515(10);
 // ########################################## Defines #########################################
 #define RED_BUTTON 2
 // #################3##################### Global variables ###################################
-float kp = 10;
+float kp = 50;
 float ki = 0;
 float kd = 0.3
 ;
@@ -65,6 +65,7 @@ float eprev = 0;
 float eintegral = 0;
 
 bool spray = false;
+bool setPointNotSet = true;
 int counter = 0;
 float roll = 0;
 // ####################################### Setup ##############################################
@@ -99,7 +100,7 @@ void setup()
 	actuator.attach(5);
 	TCCR0B = (TCCR0B & 0b11111000) | 0x02;
 
-	ESC.attach(3);
+	ESC.attach(3, 1000,2000);
 	ESC.write(89);
 	delay(500);
 }
@@ -138,7 +139,10 @@ void loop()
 
 	//Look for reports from the IMU
 	if (myIMU.dataAvailable() == true)
-	{   
+	{
+
+
+     
 		actuate();
 
 		//Get data from IMU
@@ -159,14 +163,8 @@ void loop()
 
 		//int target = 250*sin(prevT/1e6);
 
-    if(regulate)
-    {
-      target = -5;
-    }else
-    {
-      target = -7;
-    }
 
+    //target = -5;
 
 		// Position variable
 		float pos = -roll;
@@ -191,8 +189,17 @@ void loop()
 		int pwm = (int)-u+89;
 
 		// ################### If the state of regulate variable is true, then run PID regulator #######################
-		
-			ESC.write(pwm);
+		if(regulate)
+    {
+      ESC.write(pwm);
+    }else
+    {
+      ESC.write(89);
+      
+        target = -3;
+
+ }
+			
  
 		
 		// store previous error
@@ -244,6 +251,8 @@ void loop()
 			Serial.print(", ");
 			Serial.print("PWM: ");
 			Serial.println(pwm);
+      Serial.print("Target: ");
+      Serial.println(target);
 	}
 }
 
