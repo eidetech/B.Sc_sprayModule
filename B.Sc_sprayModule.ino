@@ -39,6 +39,7 @@ BNO080 myIMU;
 VL53L0X sensor;
 Servo actuator;
 Servo ESC;
+Servo BLDC;
 
 // CAN message and object
 struct can_frame canMsg;
@@ -47,10 +48,9 @@ MCP2515 mcp2515(10);
 // ########################################## Defines #########################################
 #define RED_BUTTON 2
 // #################3##################### Global variables ###################################
-float kp = 10;
+float kp = 6;
 float ki = 0;
-float kd = 0.3
-;
+float kd = 1;
 
 bool regulate = false;
 bool printNumber = true;
@@ -70,18 +70,20 @@ float roll = 0;
 // ####################################### Setup ##############################################
 void setup()
 {
+    // Serial setup
 	Serial.begin(115200);
 
+    // Define pin modes of pins
 	pinMode(RED_BUTTON, INPUT_PULLUP);
-
-	Wire.begin();
-	myIMU.begin();
 
 	// CAN bus setup
 	mcp2515.reset();
 	mcp2515.setBitrate(CAN_1000KBPS, MCP_8MHZ);
 	mcp2515.setNormalMode();
   
+    // IMU setup
+    Wire.begin();
+	myIMU.begin();
 	if (myIMU.begin() == false)
 	{
 		Serial.println(F("BNO080 not detected at default I2C address"));
@@ -96,12 +98,19 @@ void setup()
 	sensor.init();
 	sensor.setTimeout(500);
 
+    // Servo actuator setup
 	actuator.attach(5);
 	TCCR0B = (TCCR0B & 0b11111000) | 0x02;
 
-	ESC.attach(3);
-	ESC.write(89);
-	delay(500);
+    // Drone motor ESC setup
+    // ### Write 0 to ESC for it to initialize, and then write ~80 to spin the motor slowly. Remember to use 1000, 2000 work area when attaching the servo object!
+    ESC.attach(6,1000,2000);
+	ESC.write(0);
+	delay(5000); // delay to allow the ESC to recognize the stopped signal.
+
+    // BLDC motor setup (with VESC) for weight compensation
+    BLCD.attach(3);
+    BLDC.write(0);
 }
 
 // ####################################### Loop ##############################################
@@ -115,10 +124,12 @@ void loop()
 			if(currentState == 1)
 			{
 				actuate();
+                Serial.println("Actuating...");
 			}
 			else if(currentState == 0)
 			{
 				disengage();
+                Serial.println("Not actuating...");
 			}
 			else
 			{
@@ -126,7 +137,6 @@ void loop()
 			}
 		}
 	}
-
 	// ############## Button input for activating/deactivating PID regulator #################
 	lastButtonState    = currentButtonState;
 	currentButtonState = digitalRead(RED_BUTTON);
@@ -139,10 +149,10 @@ void loop()
 	//Look for reports from the IMU
 	if (myIMU.dataAvailable() == true)
 	{   
-		actuate();
-
 		//Get data from IMU
 		float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
+
+        // Other angles:
 		//float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
 		//float yaw = (myIMU.getYaw()) * 180.0 / PI; // Convert yaw / heading to degrees
 
@@ -157,16 +167,9 @@ void loop()
 
 		// ################################### PID Regulator #####################################
 
+        // Set target for PID
 		//int target = 250*sin(prevT/1e6);
-
-    if(regulate)
-    {
-      target = -5;
-    }else
-    {
-      target = -7;
-    }
-
+        target = -3.6;
 
 		// Position variable
 		float pos = -roll;
@@ -176,23 +179,40 @@ void loop()
 
 		// Time difference
 		long currT = micros();
-		float deltaT = ((float) (currT - prevT))/( 1.0e6 );
+		float dt = ((float) (currT - prevT))/( 1.0e6 );
 		prevT = currT;
 
 		// Derivative
-		float dedt = (e-eprev)/(deltaT);
+		float dedt = (e-eprev)/(dt);
 
 		// Integral
-		eintegral = eintegral + e*deltaT;
+		eintegral = eintegral + e*dt;
 
 		// Control signal
 		float u = kp*e + kd*dedt + ki*eintegral;
 
 		int pwm = (int)-u+89;
 
-		// ################### If the state of regulate variable is true, then run PID regulator #######################
-		
-			ESC.write(pwm);
+        // Constrain PWM signal to 0-180
+        if(pwm > 180)
+        {
+            pwm = 180;
+        }else if(pwm < 0)
+        {
+            pwm = 0;
+        }
+
+        // If the regulate switch is pressed, write PWM to ESC 
+        if(regulate)
+        {
+            ESC.write(pwm);
+            Serial.print("ACTIVE");
+        }else
+        {
+            ESC.write(90);
+            Serial.print("IDLE");
+        }
+			
  
 		
 		// store previous error
@@ -256,5 +276,4 @@ void actuate()
 void disengage()
 {
   actuator.write(90);
-  ESC.write(90);
 }
