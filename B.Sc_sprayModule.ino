@@ -55,6 +55,9 @@ float kd = 1;
 bool regulate = false;
 bool printNumber = true;
 
+int regulationMode = 1;
+int currentState = 0;
+
 int lastButtonState;
 int currentButtonState;
 
@@ -67,6 +70,9 @@ float eintegral = 0;
 bool spray = false;
 int counter = 0;
 float roll = 0;
+float pos = 0;
+float u = 0;
+int pwm = 0;
 // ####################################### Setup ##############################################
 void setup()
 {
@@ -75,6 +81,7 @@ void setup()
 
     // Define pin modes of pins
 	pinMode(RED_BUTTON, INPUT_PULLUP);
+    pinMode(LED_BUILTIN, OUTPUT);
 
 	// CAN bus setup
 	mcp2515.reset();
@@ -109,7 +116,7 @@ void setup()
 	delay(5000); // delay to allow the ESC to recognize the stopped signal.
 
     // BLDC motor setup (with VESC) for weight compensation
-    BLCD.attach(3);
+    BLDC.attach(3);
     BLDC.write(0);
 }
 
@@ -120,14 +127,16 @@ void loop()
 	if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
 		if(canMsg.can_id == 0x1E)
 		{
-			int currentState = canMsg.data[0];
+			currentState = canMsg.data[0];
 			if(currentState == 1)
 			{
+                digitalWrite(LED_BUILTIN, HIGH);
 				actuate();
                 Serial.println("Actuating...");
 			}
 			else if(currentState == 0)
 			{
+                digitalWrite(LED_BUILTIN, LOW);
 				disengage();
                 Serial.println("Not actuating...");
 			}
@@ -146,6 +155,7 @@ void loop()
 		regulate = !regulate;
 	}
 
+    
 	//Look for reports from the IMU
 	if (myIMU.dataAvailable() == true)
 	{   
@@ -169,10 +179,10 @@ void loop()
 
         // Set target for PID
 		//int target = 250*sin(prevT/1e6);
-        target = -3.6;
+        target = -3.2;
 
 		// Position variable
-		float pos = -roll;
+		pos = -roll;
 
 		// Error
 		e = pos-target;
@@ -189,9 +199,9 @@ void loop()
 		eintegral = eintegral + e*dt;
 
 		// Control signal
-		float u = kp*e + kd*dedt + ki*eintegral;
+		u = kp*e + kd*dedt + ki*eintegral;
 
-		int pwm = (int)-u+89;
+		pwm = (int)-u+89;
 
         // Constrain PWM signal to 0-180
         if(pwm > 180)
@@ -203,13 +213,13 @@ void loop()
         }
 
         // If the regulate switch is pressed, write PWM to ESC 
-        if(regulate)
+        if(currentState == 1)
         {
-            ESC.write(pwm);
+            BLDC.write(pwm);
             Serial.print("ACTIVE");
         }else
         {
-            ESC.write(90);
+            BLDC.write(90);
             Serial.print("IDLE");
         }
 			
@@ -217,7 +227,22 @@ void loop()
 		
 		// store previous error
 		eprev = e;    
-
+    }
+    
+        // If the regulate switch is pressed, write PWM to ESC 
+        if(currentState == 1)
+    {
+            ESC.write(125);
+            BLDC.write(pwm);
+            //Serial.print("ACTIVE");
+        }else
+        {
+            ESC.write(85);
+            BLDC.write(pwm);
+            //Serial.print("IDLE");
+        }
+			
+    
 		// ############################### Serial input for setting PID gain values live ###############################
 		int input = Serial.read();
 
@@ -264,7 +289,6 @@ void loop()
 			Serial.print(", ");
 			Serial.print("PWM: ");
 			Serial.println(pwm);
-	}
 }
 
 
