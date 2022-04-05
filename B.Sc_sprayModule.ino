@@ -88,22 +88,22 @@ void setup()
 	mcp2515.setBitrate(CAN_1000KBPS, MCP_8MHZ);
 	mcp2515.setNormalMode();
   
-    // IMU setup
-    Wire.begin();
-	myIMU.begin();
-	if (myIMU.begin() == false)
-	{
-		Serial.println(F("BNO080 not detected at default I2C address"));
-		while (1);
-	}
+    // // IMU setup
+    // Wire.begin();
+	// myIMU.begin();
+	// if (myIMU.begin() == false)
+	// {
+	// 	Serial.println(F("BNO080 not detected at default I2C address"));
+	// 	while (1);
+	// }
 
-	//Init I2C and IMU
-	Wire.setClock(400000); //Increase I2C data rate to 400kHz
-	myIMU.enableRotationVector(50); //Send data update every 50ms
+	// //Init I2C and IMU
+	// Wire.setClock(400000); //Increase I2C data rate to 400kHz
+	// myIMU.enableRotationVector(50); //Send data update every 50ms
 
-	//Time of Flight sensor
-	sensor.init();
-	sensor.setTimeout(500);
+	// //Time of Flight sensor
+	// sensor.init();
+	// sensor.setTimeout(500);
 
     // Servo actuator setup
 	actuator.attach(5);
@@ -111,12 +111,12 @@ void setup()
 
     // Drone motor ESC setup
     // ### Write 0 to ESC for it to initialize, and then write ~80 to spin the motor slowly. Remember to use 1000, 2000 work area when attaching the servo object!
-    ESC.attach(6,1000,2000);
+    ESC.attach(3,1000,2000);
 	ESC.write(0);
 	delay(5000); // delay to allow the ESC to recognize the stopped signal.
 
     // BLDC motor setup (with VESC) for weight compensation
-    BLDC.attach(3);
+    BLDC.attach(6);
     BLDC.write(0);
 }
 
