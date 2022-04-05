@@ -213,7 +213,7 @@ void loop()
         }
 
         // If the regulate switch is pressed, write PWM to ESC 
-        if(currentState == 1)
+        if(currentState == 1 || regulate == true)
         {
             BLDC.write(pwm);
             Serial.print("ACTIVE");
@@ -230,7 +230,7 @@ void loop()
     }
     
         // If the regulate switch is pressed, write PWM to ESC 
-        if(currentState == 1)
+        if(currentState == 1 || regulate == true)
     {
             ESC.write(125);
             BLDC.write(pwm);
