@@ -133,6 +133,7 @@ void setup()
   // sensor.init();
   // sensor.setTimeout(500);
 
+
     // Servo actuator setup
   actuator.attach(5);
   TCCR0B = (TCCR0B & 0b11111000) | 0x02;
@@ -142,6 +143,7 @@ void setup()
     ESC.attach(3,1000,2000);
     ESC.write(0);
     delay(5000); // delay to allow the ESC to recognize the stopped signal.
+
 
     // BLDC motor setup (with VESC) for weight compensation
     BLDC.attach(6);
