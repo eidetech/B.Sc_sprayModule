@@ -39,25 +39,23 @@ BNO080 myIMU;
 VL53L0X sensor;
 Servo actuator;
 Servo ESC;
-Servo BLDC;
 
 // CAN message and object
 struct can_frame canMsg;
 MCP2515 mcp2515(10);
 
-// ########################################## Defines #########################################
-#define RED_BUTTON 2
-// #################3##################### Global variables ###################################
-float kp = 5; // 30
-float ki = 0;
-float kd = 0;  //1
-int idle = 60;
-int sprayRPM = 90;
-float targetPos = -2;
 
-float kpVel = 0; // 
-float kiVel = 0;
-float kdVel = 0;  //
+// ###################################### Global variables ###################################
+
+//---PID---
+float kp = 5;         // 5
+float ki = 0;         // 0
+float kd = 0;         // 0
+
+//---RPM---
+int idleRPM = 60;     // 60
+int sprayRPM = 90;    // 120
+float targetPos = -2;
 
 bool regulate = false;
 bool printNumber = true;
@@ -68,26 +66,19 @@ int currentState = 2;
 int lastButtonState;
 int currentButtonState;
 
-float stopSignal = 0;
+float e;
 
-float targetVel = 0;
-float ePos;
-float eVel;
 long prevT = 0;
-float eprevPos = 0;
-float eprevVel = 0;
-float eintegralPos = 0;
-float eintegralVel = 0;
+float eprev = 0;
+float eintegral = 0;
 
 
 bool spray = false;
 int counter = 0;
 float pos;
-float vel;
 float roll;
-float uPos = 0;
+
 float u = 0;
-float uprev = 0;
 
 int pwm = 0;
 
@@ -105,7 +96,7 @@ void setup()
   Serial.begin(115200);
 
     // Define pin modes of pins
-    pinMode(RED_BUTTON, INPUT_PULLUP);
+   
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(4, OUTPUT);
 
@@ -125,8 +116,6 @@ void setup()
 
    //Init I2C and IMU
   Wire.setClock(400000); //Increase I2C data rate to 400kHz
-  
-  //myIMU.enableGyro(10); //Send data update every 50ms
   myIMU.enableRotationVector(10); //Send data update every 50ms
   
   
@@ -135,18 +124,14 @@ void setup()
   // sensor.setTimeout(500);
 
     // Servo actuator setup
-  actuator.attach(5);
-  TCCR0B = (TCCR0B & 0b11111000) | 0x02;
+    actuator.attach(5);
+    TCCR0B = (TCCR0B & 0b11111000) | 0x02;
 
     // Drone motor ESC setup
     // ### Write 0 to ESC for it to initialize, and then write ~80 to spin the motor slowly. Remember to use 1000, 2000 work area when attaching the servo object!
     ESC.attach(3,1000,2000);
     ESC.write(0);
     delay(5000); // delay to allow the ESC to recognize the stopped signal.
-
-    // BLDC motor setup (with VESC) for weight compensation
-    BLDC.attach(6);
-    BLDC.write(0);
 }
 
 // ####################################### Loop ##############################################
@@ -159,52 +144,15 @@ void loop()
     if(canMsg.can_id == 0x40)
     {
       currentState = canMsg.data[0];
-//      if(currentState == 1)
-//      {
-//                digitalWrite(LED_BUILTIN, HIGH);
-//        actuate();
-//                //Serial.println("Actuating...");
-//      }
-//      else if(currentState == 0)
-//      {
-//                digitalWrite(LED_BUILTIN, LOW);
-//        disengage();
-//                //Serial.println("Not actuating...");
-//      }
-//      else
-//      {
-//        //disengage();
-//        //ESC.write(0);
-//      }
     }
   }
-  // ############## Button input for activating/deactivating PID regulator #################
-  lastButtonState    = currentButtonState;
-  currentButtonState = digitalRead(RED_BUTTON);
-
-  // If the button is pressed, toggle the on/off the control loop
-  if(lastButtonState == HIGH && currentButtonState == LOW) {
-    regulate = !regulate;
-  }
-
-    
+ 
   //Look for reports from the IMU
   if (myIMU.dataAvailable() == true)
   {   
-//    float ax, ay, az, gx, gy, gz, qx, qy, qz, qw; //  mx, my, mz, (qx, qy, qz, qw = i,j,k, real)
-//    byte linAccuracy = 0;
-//    byte gyroAccuracy = 0;
-//    byte magAccuracy = 0;
-//    float quatRadianAccuracy = 0;
-//    byte quatAccuracy = 0;
-
-    // get IMU data in one go for each sensor type
-    //myIMU.getLinAccel(ax, ay, az, linAccuracy);
-    //myIMU.getGyro(gx, gy, gz, gyroAccuracy);
-    //myIMU.getQuat(qx, qy, qz, qw, quatRadianAccuracy, quatAccuracy);
-    //float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
     float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
-    //myIMU.getMag(mx, my, mz, magAccuracy);
+
+    
     //Get data from TOF
     //int distance = sensor.readRangeSingleMillimeters();
 
@@ -212,17 +160,13 @@ void loop()
 
     // ################################### PID Regulator #####################################
 
-        // Set target for PID
-    //int target = 250*sin(prevT/1e6);
-    
-        targetVel = 0;
-
+   
     // Position variable
     pos = pitch;
-    //pos = qy*180/PI;
+    
    
     // Error
-    ePos = pos-targetPos;
+    e = pos-targetPos;
     
 
     // Time difference
@@ -231,78 +175,43 @@ void loop()
     prevT = currT;
 
     // Derivative
-    float dedt = (ePos-eprevPos)/(dt);
+    float dedt = (e-eprev)/(dt);
     
     
     // Integral
-    eintegralPos = eintegralPos + ePos*dt;
+    eintegral = eintegral + e*dt;
     
     
     // Control signal
-    u = kp*ePos + kd*dedt + ki*eintegralPos;
-    
-    
-    //Velosity sensor
-    //vel = gx*180/PI;
-    
-    //Error inner loop
-    //eVel = vel-uPos;
-    
-    //KI vel
-    //eintegralVel = eintegralVel + eVel*dt;
-
-    //KD vel
-    float dedtVel = (eVel-eprevVel)/(dt);
-
-    //u = kpVel*eVel + kdVel*dedtVel + kiVel*eintegralVel;
+    u = kp*e + kd*dedt + ki*eintegral;
     
     pwm = (int)-u;
-
-        // Constrain PWM signal to 0-180
-//        if(pwm > 90)
-//        {
-//            pwm = 90;
-//        }
-//        if(pwm < 70)
-//        {
-//            pwm = 70;
-//        }
-       
-        
-//        // If the regulate switch is pressed, write PWM to ESC 
-//        if(currentState == 1 || regulate == true)
-//        {
-//            BLDC.write(pwm);
-//            //Serial.print("ACTIVE");
-//        }else
-//        {
-//            BLDC.write(90);
-//            //Serial.print("IDLE");
-//        }
       
  
     
     // store previous error
-    eprevPos = ePos;
-    eprevVel = eVel;  
+    eprev = e;
      
     }
-    
-    if (startTid - previousMillisStart >= sprayIntervalOff && stopSignal != 2) 
-    {
-      stopSignal = 0;
-    }
-    if (startTid - previousMillisStart >= sprayIntervalOn && stopSignal != 2) 
-    {
-      previousMillisStart = startTid;
-      stopSignal = 1;
-    }
+
+
+// ################################### Pulse regulator #####################################
+//    if (startTid - previousMillisStart >= sprayIntervalOff) 
+//    {
+//      stopSignal = 0;
+//    }
+//    if (startTid - previousMillisStart >= sprayIntervalOn) 
+//    {
+//      previousMillisStart = startTid;
+//      stopSignal = 1;
+//    }
         
-        // If the regulate switch is pressed, write PWM to ESC 
+        
+
+// If the regulate switch is pressed, write PWM to ESC 
         if(currentState == 1)
-    {
+        {
             ESC.write(sprayRPM+pwm);
-            //BLDC.write(pwm);
             digitalWrite(4, HIGH);
             actuate();
             //Serial.print("ACTIVE");
@@ -314,97 +223,46 @@ void loop()
         }
         else if(currentState == 0)
         {
-            ESC.write(idle+pwm);
-            //BLDC.write(pwm);
+            ESC.write(idleRPM+pwm);
             disengage();
             digitalWrite(4, LOW);
             //Serial.print("IDLE");
-        }else
+        }
+        else
         {
           ESC.write(0);
           disengage();
         }
 
-//         if(currentState == 2)
-//          {
-//            ESC.write(0);
-//            BLDC.write(78);
-//          }
 
     
     // ############################### Serial input for setting PID gain values live ###############################
     int input = Serial.read();
 
     if(input== 112)  //p = 112 ASCII
-        {if (Serial.available()>0)
-        {kp=Serial.parseFloat();
-        
+    {
+        if (Serial.available()>0)
+        {
+          kp=Serial.parseFloat();        
         }
     }
 
     if(input== 105)  //i = 105 ASCII
-        {if (Serial.available()>0)
-        {ki=Serial.parseFloat();
+    {
+        if (Serial.available()>0)
+        {
+          ki=Serial.parseFloat();
         }
     }
 
     if(input== 100)  //d = 100 ASCII
     {
       if (Serial.available()>0)
-      {kd=Serial.parseFloat();
+      {
+        kd=Serial.parseFloat();
       }
     }
 
-
-    if(input== 115)  //s = 115 ASCII
-    {
-      if (Serial.available()>0)
-      {stopSignal=Serial.parseFloat();
-      }
-    }
-    
-    if(input== 118)  //v = 118 ASCII
-    {
-      if (Serial.available()>0)
-      {kpVel=Serial.parseFloat();
-      }
-    }
-
-    if(input== 119)  //u = 119 ASCII
-    {
-      if (Serial.available()>0)
-      {kdVel=Serial.parseFloat();
-      }
-    }
-    // ############################################### Serial printing ##############################################
-//      Serial.print("Kp: ");
-//      Serial.print(kp,4);
-//      Serial.print(", ");
-//      Serial.print("Ki: ");
-//      Serial.print(ki,4);
-//      Serial.print(", ");
-//      Serial.print("Kd: ");
-//      Serial.print(kd,4);
-//      Serial.print(", ");
-//      Serial.print("KpVel: ");
-//      Serial.print(kpVel,4);
-//      Serial.print(", ");
-//      Serial.print("KdVel: ");
-//      Serial.print(kdVel,4);
-//      Serial.print(", ");
-//
-//      Serial.print("IMU pos: ");
-//      Serial.print(pos);
-//      Serial.print("IMU vel: ");
-//      Serial.print(vel);
-//      Serial.print(", ");
-//      Serial.print("U: ");
-//      Serial.print(u,6);
-//      Serial.print(", ");
-//      //Serial.print(millis());
-//      Serial.print("PWM: ");
-//      Serial.println(pwm);
-      //Serial.print(", ");
 // ############################################### Serial logging ##############################################
 
    //Serial.print(millis());
@@ -421,10 +279,10 @@ void loop()
 
 void actuate()
 {
-  actuator.write(85);
+  actuator.write(85);   //85
 }
 
 void disengage()
 {
-  actuator.write(50);
+  actuator.write(50);   //50
 }
