@@ -52,8 +52,8 @@ float kp = 5; // 30
 float ki = 0;
 float kd = 0;  //1
 int idle = 60;
-int sprayRPM = 130;
-float targetPos = 1;
+int sprayRPM = 90;
+float targetPos = -2;
 
 float kpVel = 0; // 
 float kiVel = 0;
@@ -63,7 +63,7 @@ bool regulate = false;
 bool printNumber = true;
 
 int regulationMode = 1;
-int currentState = 0;
+int currentState = 2;
 
 int lastButtonState;
 int currentButtonState;
@@ -107,10 +107,11 @@ void setup()
     // Define pin modes of pins
     pinMode(RED_BUTTON, INPUT_PULLUP);
     pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(4, OUTPUT);
 
   // CAN bus setup
   mcp2515.reset();
-  mcp2515.setBitrate(CAN_1000KBPS, MCP_8MHZ);
+  mcp2515.setBitrate(CAN_1000KBPS);
   mcp2515.setNormalMode();
   
   // IMU setup
@@ -155,25 +156,26 @@ void loop()
   
 // ################################### CAN Receive ###########################################
   if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
-    if(canMsg.can_id == 0x1E)
+    if(canMsg.can_id == 0x40)
     {
       currentState = canMsg.data[0];
-      if(currentState == 1)
-      {
-                digitalWrite(LED_BUILTIN, HIGH);
-        actuate();
-                //Serial.println("Actuating...");
-      }
-      else if(currentState == 0)
-      {
-                digitalWrite(LED_BUILTIN, LOW);
-        disengage();
-                //Serial.println("Not actuating...");
-      }
-      else
-      {
-        disengage();
-      }
+//      if(currentState == 1)
+//      {
+//                digitalWrite(LED_BUILTIN, HIGH);
+//        actuate();
+//                //Serial.println("Actuating...");
+//      }
+//      else if(currentState == 0)
+//      {
+//                digitalWrite(LED_BUILTIN, LOW);
+//        disengage();
+//                //Serial.println("Not actuating...");
+//      }
+//      else
+//      {
+//        //disengage();
+//        //ESC.write(0);
+//      }
     }
   }
   // ############## Button input for activating/deactivating PID regulator #################
@@ -200,7 +202,8 @@ void loop()
     //myIMU.getLinAccel(ax, ay, az, linAccuracy);
     //myIMU.getGyro(gx, gy, gz, gyroAccuracy);
     //myIMU.getQuat(qx, qy, qz, qw, quatRadianAccuracy, quatAccuracy);
-    float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
+    //float roll = (myIMU.getRoll()) * 180.0 / PI; // Convert roll to degrees
+    float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
     //myIMU.getMag(mx, my, mz, magAccuracy);
     //Get data from TOF
     //int distance = sensor.readRangeSingleMillimeters();
@@ -215,7 +218,7 @@ void loop()
         targetVel = 0;
 
     // Position variable
-    pos = roll;
+    pos = pitch;
     //pos = qy*180/PI;
    
     // Error
@@ -253,7 +256,7 @@ void loop()
 
     //u = kpVel*eVel + kdVel*dedtVel + kiVel*eintegralVel;
     
-    pwm = (int)u;
+    pwm = (int)-u;
 
         // Constrain PWM signal to 0-180
 //        if(pwm > 90)
@@ -296,10 +299,11 @@ void loop()
     }
         
         // If the regulate switch is pressed, write PWM to ESC 
-        if(currentState == 1 || regulate == true || stopSignal == 1)
+        if(currentState == 1)
     {
             ESC.write(sprayRPM+pwm);
             //BLDC.write(pwm);
+            digitalWrite(4, HIGH);
             actuate();
             //Serial.print("ACTIVE");
             if(u < 0)
@@ -308,19 +312,24 @@ void loop()
             }
             
         }
-        else
+        else if(currentState == 0)
         {
             ESC.write(idle+pwm);
             //BLDC.write(pwm);
             disengage();
+            digitalWrite(4, LOW);
             //Serial.print("IDLE");
+        }else
+        {
+          ESC.write(0);
+          disengage();
         }
 
-         if(stopSignal == 2)
-          {
-            ESC.write(0);
-            BLDC.write(78);
-          }
+//         if(currentState == 2)
+//          {
+//            ESC.write(0);
+//            BLDC.write(78);
+//          }
 
     
     // ############################### Serial input for setting PID gain values live ###############################
@@ -412,10 +421,10 @@ void loop()
 
 void actuate()
 {
-  actuator.write(50);
+  actuator.write(85);
 }
 
 void disengage()
 {
-  actuator.write(90);
+  actuator.write(50);
 }
