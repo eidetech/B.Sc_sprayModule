@@ -143,7 +143,7 @@ void loop()
   
 // ################################### CAN Receive ###########################################
   if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
-    if(canMsg.can_id == 0x40)
+    if(canMsg.can_id == 0x409)
     {
       currentState = canMsg.data[0];
     }
@@ -155,7 +155,7 @@ void loop()
     float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
     float pitchConvert = (myIMU.getPitch()) * 10000.0;
     pitchCAN = (int)pitchConvert+10000;
-    IMU.can_id  = 0x41;
+    IMU.can_id  = 0x404;
     IMU.can_dlc = 2;
     IMU.data[0] = pitchCAN;
     IMU.data[1] = pitchCAN >> 8;
@@ -274,9 +274,9 @@ void loop()
 
 // ############################################### Serial logging ##############################################
 
-   //Serial.print(pos);
-   //Serial.print(", ");
-   //Serial.println(pitchCAN);
+   Serial.print(pos);
+   Serial.print(", ");
+   Serial.println(pitchCAN);
    //   Serial.print(", ");
    //   Serial.println(uprev*10,4);
   
