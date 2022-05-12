@@ -27,7 +27,7 @@
 // ######################################### Libraries ########################################
 #include <Wire.h>
 #include "SparkFun_BNO080_Arduino_Library.h" 
-#include <VL53L0X.h>
+//#include <VL53L0X.h>
 #include <Servo.h>
 
 // CAN libraries
@@ -36,7 +36,7 @@
 
 // ############################### Sensor and actutator objects ###############################
 BNO080 myIMU;
-VL53L0X sensor;
+//VL53L0X sensor;
 Servo actuator;
 Servo ESC;
 
@@ -87,6 +87,8 @@ const long sprayIntervalOn = 40000;
 const long sprayIntervalOff = 30000;
 unsigned long previousMillisStart = 0;
 unsigned long previousMillisStop =0;
+struct can_frame IMU;
+uint16_t pitchCAN;
 
 // ####################################### Setup ##############################################
 void setup()
@@ -151,6 +153,13 @@ void loop()
   if (myIMU.dataAvailable() == true)
   {   
     float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
+    float pitchConvert = (myIMU.getPitch()) * 10000.0;
+    pitchCAN = (int)pitchConvert+10000;
+    IMU.can_id  = 0x41;
+    IMU.can_dlc = 2;
+    IMU.data[0] = pitchCAN;
+    IMU.data[1] = pitchCAN >> 8;
+    mcp2515.sendMessage(&IMU);
 
     
     //Get data from TOF
@@ -265,9 +274,9 @@ void loop()
 
 // ############################################### Serial logging ##############################################
 
-   //Serial.print(millis());
+   //Serial.print(pos);
    //Serial.print(", ");
-   Serial.println(pos,4);
+   //Serial.println(pitchCAN);
    //   Serial.print(", ");
    //   Serial.println(uprev*10,4);
   
