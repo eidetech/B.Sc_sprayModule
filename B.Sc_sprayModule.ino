@@ -199,9 +199,9 @@ void loop()
       setkp = (float)kpReceive;
       setki = (float)kiReceive;
       setkd = (float)kdReceive;
-      kp = ((setPitch)-20000)/1000;
-      ki = ((setPitch)-20000)/1000;
-      kd = ((setPitch)-20000)/1000;      
+      kp = ((setkp)-20000)/1000;
+      ki = ((setki)-20000)/1000;
+      kd = ((setkd)-20000)/1000;
     }
   }
 
@@ -237,10 +237,10 @@ void loop()
     float kpConvert = kp*1000;
     kpCAN = (int)kpConvert+20000;
     
-    float kiConvert = kp*1000;
+    float kiConvert = ki*1000;
     kiCAN = (int)kiConvert+20000;
     
-    float kdConvert = kp*1000;
+    float kdConvert = kd*1000;
     kdCAN = (int)kdConvert+20000;
     
 
