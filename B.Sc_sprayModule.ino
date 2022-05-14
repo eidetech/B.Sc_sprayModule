@@ -89,13 +89,25 @@ unsigned long previousMillisStart = 0;
 unsigned long previousMillisStop =0;
 struct can_frame IMU;
 struct can_frame PROP;
+struct can_frame PID;
 
 //CAN variables
 uint16_t pitchCAN;
 uint16_t rollCAN;
 uint16_t yawCAN;
-int targetCAN;
+uint16_t targetCAN;
+uint16_t kpCAN;
+uint16_t kiCAN;
+uint16_t kdCAN;
+
+
+
+
+//Recieve variables
 float setPitch = 0;
+float setkp;
+float setki;
+float setkd;
 
 // ####################################### Setup ##############################################
 void setup()
@@ -149,93 +161,121 @@ void loop()
   long startTid = millis();
   
 // ################################### CAN Receive ###########################################
-  // Resiev on/off actuator
+  
+  // Rx_SprayStatus
   if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
-    if(canMsg.can_id == 0x409)
+    if(canMsg.can_id == 0x80)
     {
       currentState = canMsg.data[0];
-
     }
   }
 
-  // Resiev propeller speed
+  // RX_Propeller
   if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
-    if(canMsg.can_id == 0x85)
+    if(canMsg.can_id == 0x82)
     {
       idleRPM = canMsg.data[0];
       sprayRPM = canMsg.data[1];
-
     }
   }
 
-  
-  //Resieve setpoint
+  //Rx_setpoint
   if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
-    if(canMsg.can_id == 0x200)
+    if(canMsg.can_id == 0x84)
     {
       uint16_t setPitchReceive = canMsg.data[0] | canMsg.data[1] << 8;
       setPitch = (float)setPitchReceive;
       targetPos = ((setPitch)-20000)/1000;
-      
-      Serial.print("Set pich: ");
-    
-      Serial.print(targetPos);
-      
     }
   }
 
-  //Convert setpoint
+  //Rx_PID
+  if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
+    if(canMsg.can_id == 0x86)
+    {
+      uint16_t kpReceive = canMsg.data[0] | canMsg.data[1] << 8;
+      uint16_t kiReceive = canMsg.data[2] | canMsg.data[3] << 8;
+      uint16_t kdReceive = canMsg.data[4] | canMsg.data[5] << 8;
+      setkp = (float)kpReceive;
+      setki = (float)kiReceive;
+      setkd = (float)kdReceive;
+      kp = ((setPitch)-20000)/1000;
+      ki = ((setPitch)-20000)/1000;
+      kd = ((setPitch)-20000)/1000;      
+    }
+  }
+
   
 
   
   //Look for reports from the IMU
   if (myIMU.dataAvailable() == true)
   { 
-    //Get and send pitch 
+
+    // ################################### CAN Send ###########################################
+    
+    //------------float2int----------
+    
+    //Pitch 
     float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
     float pitchConvert = (myIMU.getPitch()) * 10000.0;
-    pitchCAN = (int)pitchConvert+10000;
-    IMU.can_id  = 0x80;
+    pitchCAN = (int)pitchConvert+10000;   
+
+    //Roll
+    float rollConvert = (myIMU.getRoll()) * 10000.0;
+    rollCAN = (int)rollConvert+10000;        
+
+    //Yaw
+    float yawConvert = (myIMU.getYaw()) * 10000.0;
+    yawCAN = (int)yawConvert+10000;
+    
+    //targetPos 
+    float targetConvert = targetPos*1000;
+    targetCAN = (int)targetConvert+20000;
+
+    //PID
+    float kpConvert = kp*1000;
+    kpCAN = (int)kpConvert+20000;
+    
+    float kiConvert = kp*1000;
+    kiCAN = (int)kiConvert+20000;
+    
+    float kdConvert = kp*1000;
+    kdCAN = (int)kdConvert+20000;
+    
+
+    // IMU message
+    IMU.can_id  = 0x88;
     IMU.can_dlc = 8;
     IMU.data[0] = pitchCAN;
     IMU.data[1] = pitchCAN >> 8;
-    mcp2515.sendMessage(&IMU);
-
-    //Get and send roll
-    float rollConvert = (myIMU.getRoll()) * 10000.0;
-    rollCAN = (int)rollConvert+10000;
     IMU.data[2] = rollCAN;
     IMU.data[3] = rollCAN >> 8;
-    mcp2515.sendMessage(&IMU);
-
-    //Get and send yaw
-    float yawConvert = (myIMU.getYaw()) * 10000.0;
-    yawCAN = (int)yawConvert+10000;
     IMU.data[4] = yawCAN;
-    IMU.data[5] = yawCAN >> 8;
-    mcp2515.sendMessage(&IMU);
-
-
-    //Send targetPos
-    float targetConvert = targetPos*1000;
-    targetCAN = (int)targetConvert+20000;
+    IMU.data[5] = yawCAN >> 8; 
+    
     IMU.data[6] = targetCAN;
     IMU.data[7] = targetCAN >> 8;
     mcp2515.sendMessage(&IMU);
-    Serial.print(", ");
-    Serial.print("Send target: ");
-    Serial.println(targetCAN);
-
-    //Send 
-    PROP.can_id  = 0x82;
+  
+    //Prop speed message 
+    PROP.can_id  = 0x90;
     PROP.can_dlc = 2;
     PROP.data[0] = idleRPM;
     PROP.data[1] = sprayRPM;
-    mcp2515.sendMessage(&PROP);
-
+    mcp2515.sendMessage(&PROP);    
     
-    //Serial.print(targetConvert);
-    //Serial.print(", ");
+    //PID message
+    PID.can_id  = 0x92;
+    PID.can_dlc = 6;
+    PID.data[0] = kpCAN;
+    PID.data[1] = kpCAN >> 8;
+    PID.data[2] = kiCAN;
+    PID.data[3] = kiCAN >> 8;
+    PID.data[4] = kdCAN;
+    PID.data[5] = kdCAN >> 8;
+    mcp2515.sendMessage(&PID);
+
     
     //Get data from TOF
     //int distance = sensor.readRangeSingleMillimeters();
@@ -257,6 +297,7 @@ void loop()
     long currT = micros();
     float dt = ((float) (currT - prevT))/( 1.0e6 );
     prevT = currT;
+    
 
     // Derivative
     float dedt = (e-eprev)/(dt);
@@ -269,8 +310,7 @@ void loop()
     // Control signal
     u = kp*e + kd*dedt + ki*eintegral;
     
-    pwm = (int)-u;
-      
+    pwm = (int)-u;      
  
     
     // store previous error
