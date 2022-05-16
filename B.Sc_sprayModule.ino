@@ -147,6 +147,7 @@ void setup()
     // Servo actuator setup
     actuator.attach(5);
     TCCR0B = (TCCR0B & 0b11111000) | 0x02;
+    disengage();
 
     // Drone motor ESC setup
     // ### Write 0 to ESC for it to initialize, and then write ~80 to spin the motor slowly. Remember to use 1000, 2000 work area when attaching the servo object!
@@ -185,7 +186,7 @@ void loop()
     {
       uint16_t setPitchReceive = canMsg.data[0] | canMsg.data[1] << 8;
       setPitch = (float)setPitchReceive;
-      targetPos = ((setPitch)-20000)/1000;
+      targetPos = ((setPitch)-20000.0)/1000.0;
     }
   }
 
@@ -356,36 +357,37 @@ void loop()
         {
           ESC.write(0);
           disengage();
+          digitalWrite(4, LOW);
         }
 
 
     
     // ############################### Serial input for setting PID gain values live ###############################
-    int input = Serial.read();
-
-    if(input== 112)  //p = 112 ASCII
-    {
-        if (Serial.available()>0)
-        {
-          kp=Serial.parseFloat();        
-        }
-    }
-
-    if(input== 105)  //i = 105 ASCII
-    {
-        if (Serial.available()>0)
-        {
-          ki=Serial.parseFloat();
-        }
-    }
-
-    if(input== 100)  //d = 100 ASCII
-    {
-      if (Serial.available()>0)
-      {
-        kd=Serial.parseFloat();
-      }
-    }
+//    int input = Serial.read();
+//
+//    if(input== 112)  //p = 112 ASCII
+//    {
+//        if (Serial.available()>0)
+//        {
+//          kp=Serial.parseFloat();        
+//        }
+//    }
+//
+//    if(input== 105)  //i = 105 ASCII
+//    {
+//        if (Serial.available()>0)
+//        {
+//          ki=Serial.parseFloat();
+//        }
+//    }
+//
+//    if(input== 100)  //d = 100 ASCII
+//    {
+//      if (Serial.available()>0)
+//      {
+//        kd=Serial.parseFloat();
+//      }
+//    }
 
 // ############################################### Serial logging ##############################################
 
