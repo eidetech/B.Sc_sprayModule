@@ -54,14 +54,14 @@ float kd = 0;         // 0
 
 //---RPM---
 int idleRPM = 60;     // 60
-int sprayRPM = 90;    // 120
+int sprayRPM = 255;    // 120
 float targetPos = 1;
 
 bool regulate = false;
 bool printNumber = true;
 
 int regulationMode = 1;
-int currentState = 2;
+int currentState = 1;
 
 int lastButtonState;
 int currentButtonState;
@@ -218,7 +218,8 @@ void loop()
     //------------float2int----------
     
     //Pitch 
-    float pitch = (myIMU.getPitch()) * 180.0 / PI; // Convert pitch to degrees
+    float pitch = (myIMU.getPitch());
+    Serial.println(pitch);
     float pitchConvert = (myIMU.getPitch()) * 10000.0;
     pitchCAN = (int)pitchConvert+10000;   
 
